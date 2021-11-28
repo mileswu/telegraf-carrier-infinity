@@ -109,7 +109,7 @@ fn make_request(
             .map(|(k, v)| format!("{}=\"{}\"", k, v))
             .collect::<Vec<String>>()
             .join(",");
-    println!("{}", auth_header);
+
     let client = reqwest::blocking::Client::new();
     let request_builder = client
         .request(method.clone(), url)
