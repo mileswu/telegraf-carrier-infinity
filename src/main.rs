@@ -39,10 +39,10 @@ fn generate_oauth_base_string(
         .collect::<Vec<String>>()
         .join("&");
     let base_string = format!(
-        "{}&%{}&%{}",
+        "{}&{}&{}",
         method.as_str(),
         url_encoded,
-        request_params_string
+        percent_encode(request_params_string.as_bytes(), &OAUTH_ASCII_SET).to_string()
     );
     return base_string;
 }
