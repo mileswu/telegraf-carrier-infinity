@@ -876,6 +876,7 @@ dependencies = [
  "hmac",
  "http",
  "percent-encoding",
+ "rand",
  "reqwest",
  "roxmltree",
  "sha-1",

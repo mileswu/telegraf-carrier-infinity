@@ -73,11 +73,20 @@ fn make_request(
     let oauth_consumer_key = "8j30j19aj103911h";
     let oauth_consumer_secret = "0f5ur7d89sjv8d45";
 
+    use rand::Rng;
+    let oauth_nonce = format!("{}", rand::thread_rng().gen::<u64>());
+
+    use std::time::SystemTime;
+    let oauth_timestamp = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(duration) => format!("{}", duration.as_secs()),
+        Err(error) => panic!("{}", error),
+    };
+
     let mut oauth_params = vec![
         ("oauth_consumer_key", oauth_consumer_key),
-        ("oauth_nonce", "1212314123313"),
+        ("oauth_nonce", &oauth_nonce),
         ("oauth_signature_method", "HMAC-SHA1"),
-        ("oauth_timestamp", "1637799921"),
+        ("oauth_timestamp", &oauth_timestamp),
         ("oauth_token", &oauth_token),
         ("oauth_version", "1.0"),
     ];
