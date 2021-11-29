@@ -142,16 +142,67 @@ fn get_token_secret(username: &str, password: &str) -> String {
 
     let xml = roxmltree::Document::parse(&response).unwrap();
     return xml
-        .descendants()
+        .root_element()
+        .children()
         .find(|n| n.has_tag_name("accessToken"))
         .unwrap()
         .text()
         .unwrap()
         .to_string();
 }
+#[derive(Debug)]
+struct System {
+    location: String,
+    name: String,
+    url: String,
+}
+
+fn get_systems(username: &str, token_secret: &str) -> Vec<System> {
+    let response = make_request(
+        &format!(
+            "https://www.app-api.ing.carrier.com/users/{}/locations",
+            username
+        ),
+        http::Method::GET,
+        &Vec::new(),
+        username,
+        Some(token_secret),
+    );
+    let xml = roxmltree::Document::parse(&response).unwrap();
+    let mut results = Vec::new();
+    for node1 in xml.root_element().children() {
+        if node1.has_tag_name("location") {
+            let location = node1
+                .descendants()
+                .find(|n| n.has_tag_name("name"))
+                .unwrap()
+                .text()
+                .unwrap()
+                .to_string();
+            let systems = node1
+                .children()
+                .find(|n| n.has_tag_name("systems"))
+                .unwrap();
+            for node2 in systems.descendants() {
+                if node2.has_tag_name("link") {
+                    let name = node2.attribute("title").unwrap();
+                    let url = node2.attribute("href").unwrap();
+                    results.push(System {
+                        location: location.to_string(),
+                        name: name.to_string(),
+                        url: url.to_string(),
+                    });
+                }
+            }
+        }
+    }
+    return results;
+}
 
 fn main() {
     let opt = Opt::from_args();
-    let token_secret = get_token_secret(&opt.username, &opt.password);
-    println!("{}", token_secret);
+    let username = &opt.username;
+    let token_secret = get_token_secret(username, &opt.password);
+    let systems = get_systems(username, &token_secret);
+    println!("{:?}", systems);
 }
