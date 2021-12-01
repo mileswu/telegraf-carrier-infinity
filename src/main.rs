@@ -1,6 +1,7 @@
 use hmac::{Hmac, Mac, NewMac};
 use percent_encoding::percent_encode;
 use sha1::Sha1;
+use std::str::FromStr;
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
@@ -199,10 +200,135 @@ fn get_systems(username: &str, token_secret: &str) -> Vec<System> {
     return results;
 }
 
+fn get_system_status(username: &str, token_secret: &str, system: &System) -> String {
+    let response = make_request(
+        &format!("{}/status", system.url),
+        http::Method::GET,
+        &Vec::new(),
+        username,
+        Some(token_secret),
+    );
+    return response;
+}
+
+fn get_text<'a, 'b>(node: &'a roxmltree::Node, tag_name: &'b str) -> &'a str {
+    return node
+        .children()
+        .find(|n| n.has_tag_name(tag_name))
+        .unwrap()
+        .text()
+        .unwrap();
+}
+
+fn print_influx_line(
+    measurement: &str,
+    tag_set: &Vec<(&str, String)>,
+    field_set: &Vec<(&str, String)>,
+    timestamp: &chrono::DateTime<chrono::FixedOffset>,
+) {
+    let tag_set_string = tag_set
+        .iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<String>>()
+        .join(",");
+    let field_set_string = field_set
+        .iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<String>>()
+        .join(",");
+
+    let unix_timestamp = timestamp.timestamp_nanos();
+    println!(
+        "{},{} {} {}",
+        measurement, tag_set_string, field_set_string, unix_timestamp
+    );
+}
+
+fn parse_system_status(status: &str, location: &str) {
+    let xml = roxmltree::Document::parse(status).unwrap();
+    let status = xml.root_element();
+    let system = get_text(&status, "name");
+    let timestamp = get_text(&status, "timestamp");
+    let timestamp = chrono::DateTime::parse_from_rfc3339(timestamp).unwrap();
+    let tag_set = vec![
+        ("location", format!("\"{}\"", location)),
+        ("system", format!("\"{}\"", system)),
+    ];
+
+    let mut field_set = Vec::new();
+    for node in status.children() {
+        let key = node.tag_name().name();
+        if key == "name" || key == "timestamp" {
+            continue;
+        };
+        match node.text() {
+            None => (),
+            Some(text) => {
+                let value = match f64::from_str(text) {
+                    Ok(_) => String::from(text),
+                    Err(_) => format!("\"{}\"", text),
+                };
+
+                field_set.push((key, value));
+            }
+        }
+    }
+    print_influx_line(
+        "carrier_infinity_system_status",
+        &tag_set,
+        &field_set,
+        &timestamp,
+    );
+
+    let zones = xml
+        .root_element()
+        .children()
+        .find(|n| n.has_tag_name("zones"))
+        .unwrap();
+    for zone in zones.children() {
+        let enabled = get_text(&zone, "enabled");
+        if enabled == "off" {
+            continue;
+        };
+        let mut field_set = Vec::new();
+        let mut tag_set = tag_set.clone();
+        let zone_name = get_text(&zone, "name");
+        tag_set.push(("zone", format!("\"{}\"", zone_name)));
+
+        for node in zone.children() {
+            let key = node.tag_name().name();
+            if key == "name" {
+                continue;
+            };
+            match node.text() {
+                None => (),
+                Some(text) => {
+                    let value = match f64::from_str(text) {
+                        Ok(_) => String::from(text),
+                        Err(_) => format!("\"{}\"", text),
+                    };
+
+                    field_set.push((key, value));
+                }
+            }
+        }
+
+        print_influx_line(
+            "carrier_infinity_zone_status",
+            &tag_set,
+            &field_set,
+            &timestamp,
+        );
+    }
+}
+
 fn main() {
     let opt = Opt::from_args();
     let username = &opt.username;
     let token_secret = get_token_secret(username, &opt.password);
     let systems = get_systems(username, &token_secret);
-    println!("{:?}", systems);
+    for system in systems {
+        let status = get_system_status(username, &token_secret, &system);
+        parse_system_status(&status, &system.location);
+    }
 }
