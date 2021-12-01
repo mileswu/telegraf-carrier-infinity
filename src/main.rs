@@ -252,8 +252,8 @@ fn parse_system_status(status: &str, location: &str) {
     let timestamp = get_text(&status, "timestamp");
     let timestamp = chrono::DateTime::parse_from_rfc3339(timestamp).unwrap();
     let tag_set = vec![
-        ("location", format!("\"{}\"", location.replace(" ", "\\ "))),
-        ("system", format!("\"{}\"", system.replace(" ", "\\ "))),
+        ("location", location.replace(" ", "\\ ")),
+        ("system", system.replace(" ", "\\ ")),
     ];
 
     let mut field_set = Vec::new();
@@ -294,7 +294,7 @@ fn parse_system_status(status: &str, location: &str) {
         let mut field_set = Vec::new();
         let mut tag_set = tag_set.clone();
         let zone_name = get_text(&zone, "name").replace(" ", "\\ ");
-        tag_set.push(("zone", format!("\"{}\"", zone_name)));
+        tag_set.push(("zone", zone_name));
 
         for node in zone.children() {
             let key = node.tag_name().name();
