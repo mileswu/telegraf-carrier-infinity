@@ -1,6 +1,7 @@
 use hmac::{Hmac, Mac, NewMac};
 use percent_encoding::percent_encode;
 use sha1::Sha1;
+use std::io;
 use std::str::FromStr;
 use structopt::StructOpt;
 
@@ -327,8 +328,17 @@ fn main() {
     let username = &opt.username;
     let token_secret = get_token_secret(username, &opt.password);
     let systems = get_systems(username, &token_secret);
-    for system in systems {
-        let status = get_system_status(username, &token_secret, &system);
-        parse_system_status(&status, &system.location);
+
+    eprintln!(
+        "Found {} systems. Send a newline in order to fetch data.",
+        systems.len()
+    );
+
+    let stdin = io::stdin();
+    while stdin.read_line(&mut String::new()).unwrap() > 0 {
+        for system in &systems {
+            let status = get_system_status(username, &token_secret, &system);
+            parse_system_status(&status, &system.location);
+        }
     }
 }
